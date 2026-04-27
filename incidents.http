@@ -1,0 +1,42 @@
+### Crear incidente
+POST http://localhost:8080/incidents
+Content-Type: application/json
+
+{
+  "title": "Database connection timeout",
+  "description": "Production database not responding",
+  "severity": "P1",
+  "assignedTo": "ops-team"
+}
+
+###
+
+### Listar todos los incidentes
+GET http://localhost:8080/incidents
+
+###
+
+### Obtener incidente por ID
+GET http://localhost:8080/incidents/{{incidentId}}
+
+###
+
+### Acknowledge incidente
+PATCH http://localhost:8080/incidents/{{incidentId}}/acknowledge
+
+###
+
+### Resolver incidente
+PATCH http://localhost:8080/incidents/{{incidentId}}/resolve
+
+###
+
+### Eliminar incidente (solo si está RESOLVED)
+DELETE http://localhost:8080/incidents/{{incidentId}}
+
+###
+
+### Stream SSE (abrir en navegador o usar curl)
+GET http://localhost:8080/incidents/stream
+
+###
