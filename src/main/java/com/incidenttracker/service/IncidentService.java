@@ -2,6 +2,7 @@ package com.incidenttracker.service;
 
 import com.incidenttracker.dto.IncidentRequest;
 import com.incidenttracker.dto.IncidentResponse;
+import com.incidenttracker.exception.IncidentNotFoundException;
 import com.incidenttracker.exception.InvalidTransitionException;
 import com.incidenttracker.model.Incident;
 import com.incidenttracker.model.Status;
@@ -42,59 +43,66 @@ public class IncidentService {
     }
 
     public Mono<IncidentResponse> getIncidentById(String id) {
-        return repository.findById(id)
-                .map(this::toResponse)
-                .switchIfEmpty(Mono.error(new RuntimeException("Incident not found")));
+        return findIncidentOrThrow(id)
+                .map(this::toResponse);
     }
 
     public Mono<IncidentResponse> acknowledgeIncident(String id) {
-        return repository.findById(id)
+        return findIncidentOrThrow(id)
                 .flatMap(incident -> {
-                    if (incident.getStatus() != Status.OPEN) {
-                        return Mono.error(new InvalidTransitionException(
-                                "Cannot acknowledge incident. Current status: " + incident.getStatus()));
-                    }
+                    validateTransition(incident.getStatus(), Status.ACKNOWLEDGED);
                     incident.setStatus(Status.ACKNOWLEDGED);
                     incident.setUpdatedAt(Instant.now());
                     return repository.save(incident);
                 })
-                .map(this::toResponse)
-                .switchIfEmpty(Mono.error(new RuntimeException("Incident not found")));
+                .map(this::toResponse);
     }
 
     public Mono<IncidentResponse> resolveIncident(String id) {
-        return repository.findById(id)
+        return findIncidentOrThrow(id)
                 .flatMap(incident -> {
-                    if (incident.getStatus() == Status.RESOLVED) {
-                        return Mono.error(new InvalidTransitionException(
-                                "Incident is already resolved"));
-                    }
-                    if (incident.getStatus() == Status.OPEN) {
-                        return Mono.error(new InvalidTransitionException(
-                                "Cannot resolve incident from OPEN status. Must be ACKNOWLEDGED first"));
-                    }
+                    validateTransition(incident.getStatus(), Status.RESOLVED);
                     incident.setStatus(Status.RESOLVED);
                     incident.setUpdatedAt(Instant.now());
                     return repository.save(incident);
                 })
-                .map(this::toResponse)
-                .switchIfEmpty(Mono.error(new RuntimeException("Incident not found")));
+                .map(this::toResponse);
     }
 
     public Mono<Void> deleteIncident(String id) {
-        return repository.findById(id)
+        return findIncidentOrThrow(id)
                 .flatMap(incident -> {
                     if (incident.getStatus() != Status.RESOLVED) {
                         return Mono.error(new InvalidTransitionException(
                                 "Cannot delete incident. Only RESOLVED incidents can be deleted"));
                     }
                     return repository.deleteById(id);
-                })
-                .switchIfEmpty(Mono.error(new RuntimeException("Incident not found")));
+                });
     }
 
     public Flux<IncidentResponse> streamIncidents() {
         return sink.asFlux();
+    }
+
+    private Mono<Incident> findIncidentOrThrow(String id) {
+        return repository.findById(id)
+                .switchIfEmpty(Mono.error(new IncidentNotFoundException(id)));
+    }
+
+    private void validateTransition(Status currentStatus, Status targetStatus) {
+        if (targetStatus == Status.ACKNOWLEDGED && currentStatus != Status.OPEN) {
+            throw new InvalidTransitionException(
+                    "Cannot acknowledge incident. Current status: " + currentStatus);
+        }
+        if (targetStatus == Status.RESOLVED) {
+            if (currentStatus == Status.RESOLVED) {
+                throw new InvalidTransitionException("Incident is already resolved");
+            }
+            if (currentStatus == Status.OPEN) {
+                throw new InvalidTransitionException(
+                        "Cannot resolve incident from OPEN status. Must be ACKNOWLEDGED first");
+            }
+        }
     }
 
     private IncidentResponse toResponse(Incident incident) {
