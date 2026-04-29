@@ -70,3 +70,39 @@ src/main/java/com/incidenttracker/
 ├── repository/      # Capa de persistencia
 └── service/         # Lógica de negocio
 ```
+
+## Mejoras de código implementadas
+
+### v1.1.0 - Refactorización y Clean Code
+
+**Problema:** Código repetido y excepciones genéricas
+
+**Solución:**
+- ✅ Creada excepción específica `IncidentNotFoundException` para mejor semántica
+- ✅ Extraído método `findIncidentOrThrow()` para eliminar código duplicado (DRY)
+- ✅ Extraído método `validateTransition()` para centralizar validaciones de estado
+- ✅ Mejorado manejo de errores con códigos HTTP correctos (404 vs 500)
+- ✅ CORS configurado con `allowedOriginPatterns("*")` para flexibilidad en desarrollo
+
+**Beneficios:**
+- Código más limpio y mantenible
+- Menos duplicación (3 `switchIfEmpty` → 1 método reutilizable)
+- Errores más descriptivos y específicos
+- Mejor experiencia de desarrollo con CORS flexible
+
+## Git Workflow
+
+Este proyecto usa Git Flow:
+
+- `main` - Código en producción
+- `develop` - Rama de desarrollo
+- `feature/*` - Nuevas funcionalidades
+
+## Tecnologías
+
+- Spring Boot 3.2.5
+- Spring WebFlux (Programación reactiva)
+- Project Reactor (Mono/Flux)
+- Lombok
+- Jakarta Validation
+- Maven
