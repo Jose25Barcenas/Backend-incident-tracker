@@ -56,7 +56,27 @@ OPEN → ACKNOWLEDGED → RESOLVED
 
 ## Ejemplos de uso
 
-Ver archivo `incidents.http` para ejemplos de todas las operaciones.
+### Opción 1: Postman (Recomendado)
+1. Importa la colección: `Incident-Tracker-API.postman_collection.json`
+2. Ejecuta las peticiones en orden
+3. Copia el `id` de la respuesta y pégalo en la variable `incidentId` de Postman
+
+### Opción 2: Archivo HTTP
+Ver archivo `incidents.http` para ejemplos de todas las operaciones (compatible con IntelliJ/VS Code).
+
+## Pruebas realizadas
+
+✅ **Todos los endpoints probados y funcionando correctamente:**
+- POST /incidents - Crear incidente (Status 201)
+- GET /incidents - Listar todos los incidentes (Status 200)
+- PATCH /incidents/{id}/acknowledge - Cambiar a ACKNOWLEDGED (Status 200)
+- PATCH /incidents/{id}/resolve - Cambiar a RESOLVED (Status 200)
+- DELETE /incidents/{id} - Eliminar incidente RESOLVED (Status 204)
+
+✅ **Validaciones del ciclo de vida funcionando:**
+- Error 422 al intentar acknowledge un incidente RESOLVED
+- Error 422 al intentar eliminar un incidente no RESOLVED
+- Error 422 al intentar resolver desde OPEN (debe estar ACKNOWLEDGED primero)
 
 ## Estructura del proyecto
 
