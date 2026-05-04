@@ -143,6 +143,31 @@ Este proyecto usa Git Flow:
 - `develop` - Rama de desarrollo
 - `feature/*` - Nuevas funcionalidades
 
+## Tests
+
+El proyecto incluye tests unitarios y de integración:
+
+```bash
+# Ejecutar todos los tests
+mvn test
+
+# Ejecutar tests con reporte de cobertura
+mvn test jacoco:report
+```
+
+**Cobertura de tests:**
+- ✅ Tests unitarios del servicio (IncidentServiceTest)
+  - Creación de incidentes
+  - Obtención de incidentes
+  - Transiciones de estado (acknowledge, resolve)
+  - Validaciones del ciclo de vida
+  - Eliminación de incidentes
+  
+- ✅ Tests de integración del controller (IncidentControllerTest)
+  - Endpoints REST
+  - Validaciones de entrada
+  - Códigos de estado HTTP
+
 ## Tecnologías
 
 - Spring Boot 3.2.5
@@ -154,3 +179,4 @@ Este proyecto usa Git Flow:
 - Jakarta Validation
 - Maven
 - Docker
+- JUnit 5 + Mockito (Testing)
