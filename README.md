@@ -4,29 +4,37 @@ API REST reactiva para gestión de incidentes en tiempo real usando Spring WebFl
 
 ## Requisitos
 
-- Java 17+
-- Maven 3.6+
-- Docker (para MongoDB)
+- Docker y Docker Compose (recomendado)
+- O Java 17+ y Maven 3.6+ (para desarrollo local)
 
 ## Ejecución
 
-### 1. Levantar MongoDB con Docker
+### Opción 1: Con Docker (Recomendado - Todo en contenedores)
 
 ```bash
+# Levantar MongoDB y Backend juntos
 docker-compose up -d
-```
 
-Esto levanta MongoDB en `localhost:27017`. Los datos persisten entre reinicios.
+# Ver logs
+docker-compose logs -f backend
 
-### 2. Ejecutar el backend
-
-```bash
-./mvnw spring-boot:run
+# Detener todo
+docker-compose down
 ```
 
 La aplicación estará disponible en `http://localhost:8080`
 
-### Detener MongoDB
+### Opción 2: Desarrollo local (Solo MongoDB en Docker)
+
+```bash
+# 1. Levantar solo MongoDB
+docker-compose up -d mongodb
+
+# 2. Ejecutar el backend localmente
+./mvnw spring-boot:run
+```
+
+### Detener servicios
 
 ```bash
 docker-compose down
