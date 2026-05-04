@@ -6,14 +6,31 @@ API REST reactiva para gestión de incidentes en tiempo real usando Spring WebFl
 
 - Java 17+
 - Maven 3.6+
+- Docker (para MongoDB)
 
 ## Ejecución
+
+### 1. Levantar MongoDB con Docker
+
+```bash
+docker-compose up -d
+```
+
+Esto levanta MongoDB en `localhost:27017`. Los datos persisten entre reinicios.
+
+### 2. Ejecutar el backend
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
 La aplicación estará disponible en `http://localhost:8080`
+
+### Detener MongoDB
+
+```bash
+docker-compose down
+```
 
 ## Endpoints
 
@@ -122,7 +139,10 @@ Este proyecto usa Git Flow:
 
 - Spring Boot 3.2.5
 - Spring WebFlux (Programación reactiva)
+- Spring Data MongoDB Reactive
+- MongoDB 7.0
 - Project Reactor (Mono/Flux)
 - Lombok
 - Jakarta Validation
 - Maven
+- Docker
