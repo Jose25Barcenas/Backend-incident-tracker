@@ -4,15 +4,20 @@ import com.incidenttracker.exception.InvalidTransitionException;
 import com.incidenttracker.model.Status;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+import java.util.function.Consumer;
+
 @Component
 public class StatusTransitionValidator {
 
+    private final Map<Status, Consumer<Status>> transitionRules = Map.of(
+            Status.ACKNOWLEDGED, this::validateAcknowledgeTransition,
+            Status.RESOLVED, this::validateResolveTransition
+    );
+
     public void validateTransition(Status currentStatus, Status targetStatus) {
-        if (targetStatus == Status.ACKNOWLEDGED) {
-            validateAcknowledgeTransition(currentStatus);
-        } else if (targetStatus == Status.RESOLVED) {
-            validateResolveTransition(currentStatus);
-        }
+        transitionRules.getOrDefault(targetStatus, status -> {})
+                .accept(currentStatus);
     }
 
     public void validateDeletion(Status currentStatus) {

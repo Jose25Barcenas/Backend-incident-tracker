@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 
@@ -28,12 +29,16 @@ public class IncidentService {
                 .map(mapper::toEntity)
                 .flatMap(repository::save)
                 .map(mapper::toResponse)
-                .doOnNext(streamService::emitIncident);
+                .doOnNext(streamService::emitIncident)
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     public Flux<IncidentResponse> getAllIncidents() {
         return repository.findAll()
-                .map(mapper::toResponse);
+                .parallel()
+                .runOn(Schedulers.parallel())
+                .map(mapper::toResponse)
+                .sequential();
     }
 
     public Mono<IncidentResponse> getIncidentById(String id) {
@@ -43,18 +48,21 @@ public class IncidentService {
 
     public Mono<IncidentResponse> acknowledgeIncident(String id) {
         return findIncidentOrThrow(id)
-                .flatMap(incident -> updateStatus(incident, Status.ACKNOWLEDGED));
+                .flatMap(incident -> updateStatus(incident, Status.ACKNOWLEDGED))
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<IncidentResponse> resolveIncident(String id) {
         return findIncidentOrThrow(id)
-                .flatMap(incident -> updateStatus(incident, Status.RESOLVED));
+                .flatMap(incident -> updateStatus(incident, Status.RESOLVED))
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<Void> deleteIncident(String id) {
         return findIncidentOrThrow(id)
                 .doOnNext(incident -> validator.validateDeletion(incident.getStatus()))
-                .flatMap(incident -> repository.deleteById(id));
+                .flatMap(incident -> repository.deleteById(id))
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     private Mono<IncidentResponse> updateStatus(Incident incident, Status newStatus) {
