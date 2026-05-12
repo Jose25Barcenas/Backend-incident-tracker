@@ -37,3 +37,9 @@ build/
 ### PDF ###
 *.pdf
 *.pdf:Zone.Identifier
+
+### Logs ###
+*.log
+
+### Scripts ###
+run-tests.sh
