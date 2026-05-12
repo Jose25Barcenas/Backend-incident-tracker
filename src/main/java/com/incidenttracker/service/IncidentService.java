@@ -3,118 +3,80 @@ package com.incidenttracker.service;
 import com.incidenttracker.dto.IncidentRequest;
 import com.incidenttracker.dto.IncidentResponse;
 import com.incidenttracker.exception.IncidentNotFoundException;
-import com.incidenttracker.exception.InvalidTransitionException;
+import com.incidenttracker.mapper.IncidentMapper;
 import com.incidenttracker.model.Incident;
 import com.incidenttracker.model.Status;
 import com.incidenttracker.repository.IncidentRepository;
+import com.incidenttracker.validator.StatusTransitionValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
 
 import java.time.Instant;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class IncidentService {
     private final IncidentRepository repository;
-    private final Sinks.Many<IncidentResponse> sink = Sinks.many().multicast().onBackpressureBuffer();
+    private final IncidentMapper mapper;
+    private final StatusTransitionValidator validator;
+    private final IncidentStreamService streamService;
 
     public Mono<IncidentResponse> createIncident(IncidentRequest request) {
-        Incident incident = new Incident();
-        incident.setId(UUID.randomUUID().toString());
-        incident.setTitle(request.getTitle());
-        incident.setDescription(request.getDescription());
-        incident.setSeverity(request.getSeverity());
-        incident.setStatus(Status.OPEN);
-        incident.setAssignedTo(request.getAssignedTo());
-        incident.setCreatedAt(Instant.now());
-        incident.setUpdatedAt(Instant.now());
-
-        return repository.save(incident)
-                .map(this::toResponse)
-                .doOnNext(response -> sink.tryEmitNext(response));
+        return Mono.just(request)
+                .map(mapper::toEntity)
+                .flatMap(repository::save)
+                .map(mapper::toResponse)
+                .doOnNext(streamService::emitIncident);
     }
 
     public Flux<IncidentResponse> getAllIncidents() {
-        return repository.findAll().map(this::toResponse);
+        return repository.findAll()
+                .map(mapper::toResponse);
     }
 
     public Mono<IncidentResponse> getIncidentById(String id) {
         return findIncidentOrThrow(id)
-                .map(this::toResponse);
+                .map(mapper::toResponse);
     }
 
     public Mono<IncidentResponse> acknowledgeIncident(String id) {
         return findIncidentOrThrow(id)
-                .flatMap(incident -> {
-                    validateTransition(incident.getStatus(), Status.ACKNOWLEDGED);
-                    incident.setStatus(Status.ACKNOWLEDGED);
-                    incident.setUpdatedAt(Instant.now());
-                    return repository.save(incident);
-                })
-                .map(this::toResponse);
+                .flatMap(incident -> updateStatus(incident, Status.ACKNOWLEDGED));
     }
 
     public Mono<IncidentResponse> resolveIncident(String id) {
         return findIncidentOrThrow(id)
-                .flatMap(incident -> {
-                    validateTransition(incident.getStatus(), Status.RESOLVED);
-                    incident.setStatus(Status.RESOLVED);
-                    incident.setUpdatedAt(Instant.now());
-                    return repository.save(incident);
-                })
-                .map(this::toResponse);
+                .flatMap(incident -> updateStatus(incident, Status.RESOLVED));
     }
 
     public Mono<Void> deleteIncident(String id) {
         return findIncidentOrThrow(id)
-                .flatMap(incident -> {
-                    if (incident.getStatus() != Status.RESOLVED) {
-                        return Mono.error(new InvalidTransitionException(
-                                "Cannot delete incident. Only RESOLVED incidents can be deleted"));
-                    }
-                    return repository.deleteById(id);
-                });
+                .doOnNext(incident -> validator.validateDeletion(incident.getStatus()))
+                .flatMap(incident -> repository.deleteById(id));
     }
 
-    public Flux<IncidentResponse> streamIncidents() {
-        return sink.asFlux();
+    private Mono<IncidentResponse> updateStatus(Incident incident, Status newStatus) {
+        validator.validateTransition(incident.getStatus(), newStatus);
+        
+        Incident updatedIncident = Incident.builder()
+                .id(incident.getId())
+                .title(incident.getTitle())
+                .description(incident.getDescription())
+                .severity(incident.getSeverity())
+                .status(newStatus)
+                .assignedTo(incident.getAssignedTo())
+                .createdAt(incident.getCreatedAt())
+                .updatedAt(Instant.now())
+                .build();
+        
+        return repository.save(updatedIncident)
+                .map(mapper::toResponse);
     }
 
     private Mono<Incident> findIncidentOrThrow(String id) {
         return repository.findById(id)
                 .switchIfEmpty(Mono.error(new IncidentNotFoundException(id)));
-    }
-
-    private void validateTransition(Status currentStatus, Status targetStatus) {
-        if (targetStatus == Status.ACKNOWLEDGED && currentStatus != Status.OPEN) {
-            throw new InvalidTransitionException(
-                    "Cannot acknowledge incident. Current status: " + currentStatus);
-        }
-        if (targetStatus == Status.RESOLVED) {
-            if (currentStatus == Status.RESOLVED) {
-                throw new InvalidTransitionException("Incident is already resolved");
-            }
-            if (currentStatus == Status.OPEN) {
-                throw new InvalidTransitionException(
-                        "Cannot resolve incident from OPEN status. Must be ACKNOWLEDGED first");
-            }
-        }
-    }
-
-    private IncidentResponse toResponse(Incident incident) {
-        return new IncidentResponse(
-                incident.getId(),
-                incident.getTitle(),
-                incident.getDescription(),
-                incident.getSeverity(),
-                incident.getStatus(),
-                incident.getAssignedTo(),
-                incident.getCreatedAt(),
-                incident.getUpdatedAt()
-        );
     }
 }

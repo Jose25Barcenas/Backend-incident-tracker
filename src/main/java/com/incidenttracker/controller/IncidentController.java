@@ -3,6 +3,7 @@ package com.incidenttracker.controller;
 import com.incidenttracker.dto.IncidentRequest;
 import com.incidenttracker.dto.IncidentResponse;
 import com.incidenttracker.service.IncidentService;
+import com.incidenttracker.service.IncidentStreamService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class IncidentController {
     private final IncidentService service;
+    private final IncidentStreamService streamService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -51,6 +53,6 @@ public class IncidentController {
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<IncidentResponse> streamIncidents() {
-        return service.streamIncidents();
+        return streamService.getStream();
     }
 }
