@@ -4,10 +4,12 @@ import com.incidenttracker.dto.IncidentRequest;
 import com.incidenttracker.dto.IncidentResponse;
 import com.incidenttracker.exception.IncidentNotFoundException;
 import com.incidenttracker.exception.InvalidTransitionException;
+import com.incidenttracker.mapper.IncidentMapper;
 import com.incidenttracker.model.Incident;
 import com.incidenttracker.model.Severity;
 import com.incidenttracker.model.Status;
 import com.incidenttracker.repository.IncidentRepository;
+import com.incidenttracker.validator.StatusTransitionValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +25,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +34,15 @@ class IncidentServiceTest {
     @Mock
     private IncidentRepository repository;
 
+    @Mock
+    private IncidentMapper mapper;
+
+    @Mock
+    private StatusTransitionValidator validator;
+
+    @Mock
+    private IncidentStreamService streamService;
+
     @InjectMocks
     private IncidentService service;
 
@@ -38,15 +50,29 @@ class IncidentServiceTest {
 
     @BeforeEach
     void setUp() {
-        testIncident = new Incident();
-        testIncident.setId("test-id");
-        testIncident.setTitle("Test Incident");
-        testIncident.setDescription("Test Description");
-        testIncident.setSeverity(Severity.P1);
-        testIncident.setStatus(Status.OPEN);
-        testIncident.setAssignedTo("test-user");
-        testIncident.setCreatedAt(Instant.now());
-        testIncident.setUpdatedAt(Instant.now());
+        testIncident = Incident.builder()
+                .id("test-id")
+                .title("Test Incident")
+                .description("Test Description")
+                .severity(Severity.P1)
+                .status(Status.OPEN)
+                .assignedTo("test-user")
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+    }
+
+    private IncidentResponse toResponse(Incident inc) {
+        return IncidentResponse.builder()
+                .id(inc.getId())
+                .title(inc.getTitle())
+                .description(inc.getDescription())
+                .severity(inc.getSeverity())
+                .status(inc.getStatus())
+                .assignedTo(inc.getAssignedTo())
+                .createdAt(inc.getCreatedAt())
+                .updatedAt(inc.getUpdatedAt())
+                .build();
     }
 
     @Test
@@ -57,7 +83,9 @@ class IncidentServiceTest {
         request.setSeverity(Severity.P1);
         request.setAssignedTo("user");
 
+        when(mapper.toEntity(any(IncidentRequest.class))).thenReturn(testIncident);
         when(repository.save(any(Incident.class))).thenReturn(Mono.just(testIncident));
+        when(mapper.toResponse(any(Incident.class))).thenAnswer(invocation -> toResponse(invocation.getArgument(0)));
 
         StepVerifier.create(service.createIncident(request))
                 .assertNext(response -> {
@@ -71,6 +99,7 @@ class IncidentServiceTest {
     @Test
     void getAllIncidents_shouldReturnAllIncidents() {
         when(repository.findAll()).thenReturn(Flux.just(testIncident));
+        when(mapper.toResponse(any(Incident.class))).thenAnswer(invocation -> toResponse(invocation.getArgument(0)));
 
         StepVerifier.create(service.getAllIncidents())
                 .assertNext(response -> {
@@ -83,6 +112,7 @@ class IncidentServiceTest {
     @Test
     void getIncidentById_shouldReturnIncident() {
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
+        when(mapper.toResponse(any(Incident.class))).thenAnswer(invocation -> toResponse(invocation.getArgument(0)));
 
         StepVerifier.create(service.getIncidentById("test-id"))
                 .assertNext(response -> {
@@ -105,7 +135,8 @@ class IncidentServiceTest {
     void acknowledgeIncident_shouldChangeStatusToAcknowledged() {
         testIncident.setStatus(Status.OPEN);
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
-        when(repository.save(any(Incident.class))).thenReturn(Mono.just(testIncident));
+        when(repository.save(any(Incident.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(mapper.toResponse(any(Incident.class))).thenAnswer(invocation -> toResponse(invocation.getArgument(0)));
 
         StepVerifier.create(service.acknowledgeIncident("test-id"))
                 .assertNext(response -> {
@@ -119,6 +150,9 @@ class IncidentServiceTest {
         testIncident.setStatus(Status.RESOLVED);
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
 
+        doThrow(new InvalidTransitionException("Invalid transition"))
+                .when(validator).validateTransition(Status.RESOLVED, Status.ACKNOWLEDGED);
+
         StepVerifier.create(service.acknowledgeIncident("test-id"))
                 .expectError(InvalidTransitionException.class)
                 .verify();
@@ -128,7 +162,8 @@ class IncidentServiceTest {
     void resolveIncident_shouldChangeStatusToResolved() {
         testIncident.setStatus(Status.ACKNOWLEDGED);
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
-        when(repository.save(any(Incident.class))).thenReturn(Mono.just(testIncident));
+        when(repository.save(any(Incident.class))).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(mapper.toResponse(any(Incident.class))).thenAnswer(invocation -> toResponse(invocation.getArgument(0)));
 
         StepVerifier.create(service.resolveIncident("test-id"))
                 .assertNext(response -> {
@@ -142,6 +177,9 @@ class IncidentServiceTest {
         testIncident.setStatus(Status.OPEN);
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
 
+        doThrow(new InvalidTransitionException("Invalid transition"))
+                .when(validator).validateTransition(Status.OPEN, Status.RESOLVED);
+
         StepVerifier.create(service.resolveIncident("test-id"))
                 .expectError(InvalidTransitionException.class)
                 .verify();
@@ -151,6 +189,9 @@ class IncidentServiceTest {
     void resolveIncident_shouldFailIfAlreadyResolved() {
         testIncident.setStatus(Status.RESOLVED);
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
+
+        doThrow(new InvalidTransitionException("Invalid transition"))
+                .when(validator).validateTransition(Status.RESOLVED, Status.RESOLVED);
 
         StepVerifier.create(service.resolveIncident("test-id"))
                 .expectError(InvalidTransitionException.class)
@@ -171,6 +212,9 @@ class IncidentServiceTest {
     void deleteIncident_shouldFailIfNotResolved() {
         testIncident.setStatus(Status.OPEN);
         when(repository.findById("test-id")).thenReturn(Mono.just(testIncident));
+
+        doThrow(new InvalidTransitionException("Invalid transition"))
+                .when(validator).validateDeletion(Status.OPEN);
 
         StepVerifier.create(service.deleteIncident("test-id"))
                 .expectError(InvalidTransitionException.class)
