@@ -9,6 +9,7 @@ import com.incidenttracker.model.Status;
 import com.incidenttracker.repository.IncidentRepository;
 import com.incidenttracker.validator.StatusTransitionValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -16,6 +17,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class IncidentService {
@@ -30,6 +32,7 @@ public class IncidentService {
                 .flatMap(repository::save)
                 .map(mapper::toResponse)
                 .doOnNext(streamService::emitIncident)
+                .doOnError(error -> log.error("Error creating incident", error))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -38,7 +41,8 @@ public class IncidentService {
                 .parallel()
                 .runOn(Schedulers.parallel())
                 .map(mapper::toResponse)
-                .sequential();
+                .sequential()
+                .doOnError(error -> log.error("Error fetching incidents", error));
     }
 
     public Mono<IncidentResponse> getIncidentById(String id) {
@@ -49,12 +53,14 @@ public class IncidentService {
     public Mono<IncidentResponse> acknowledgeIncident(String id) {
         return findIncidentOrThrow(id)
                 .flatMap(incident -> updateStatus(incident, Status.ACKNOWLEDGED))
+                .doOnError(error -> log.error("Error acknowledging incident {}", id, error))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
     public Mono<IncidentResponse> resolveIncident(String id) {
         return findIncidentOrThrow(id)
                 .flatMap(incident -> updateStatus(incident, Status.RESOLVED))
+                .doOnError(error -> log.error("Error resolving incident {}", id, error))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
@@ -62,6 +68,7 @@ public class IncidentService {
         return findIncidentOrThrow(id)
                 .doOnNext(incident -> validator.validateDeletion(incident.getStatus()))
                 .flatMap(incident -> repository.deleteById(id))
+                .doOnError(error -> log.error("Error deleting incident {}", id, error))
                 .subscribeOn(Schedulers.boundedElastic());
     }
 
